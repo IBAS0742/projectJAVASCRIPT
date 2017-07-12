@@ -27,8 +27,9 @@ var execDock = (function (cb,params,$this) {
         // },
         //参数使用数组
         execu : function (cbfn) {
-            if (splitAttrForManage(window,this.cb) != window) {
-                splitAttrForManage(window,this.cb).apply(splitAttrForManage(window,this.$this),this.params);
+            var tarFn = splitAttrForManage(window,this.cb);
+            if (tarFn && (tarFn != window)) {
+                tarFn.apply(splitAttrForManage(window,this.$this),this.params);
                 clearTimeout(this.id);
                 this.id = null;
                 if (cbfn) {

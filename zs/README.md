@@ -280,3 +280,129 @@ function checkBeforeExampleTwo(obj) {
         autoCheckFields();
     </script>
 ```
+
+# execDock.js(强依赖 common.js)
+执行异步加载函数的内容
+
+### 属性
+属性名称|解释
+--|--
+id| setInterval 对象，开始为 null
+cb| 默认的执行函数
+params| 执行函数所需的参数
+$this| 执行函数 this 对象
+maxTimes| 最大尝试次数
+curTime | 当前尝试次数
+interval| 每次测试的延时
+execu| 默认的执行函数
+
+#### Demo
+```javascript
+var mockFn = null;
+execDock("mockFn").execu(function(){
+    console.log("mockFn 已经执行");
+});
+setTimeout(function(){
+    mockFn = function() {
+        console.log("mockFn 执行过程");
+    }
+},3000);
+```
+
+# eventQueue.js
+执行函数队列，方法本身带两个参数：
+参数|说明
+--|--
+events| 将要运行的函数数组集合
+tipObj| 对象，一个 show 属性用于展现信息，一个 tipList 对象，有 before 和 after 两个数组属性，用于给 show 展示函数执行前后的信息。
+```javascript
+tipObj = {
+    show : console.log,
+    tipList : {
+        before : new Array(events.length),
+        after : new Array(events.length)
+    }
+}
+```
+
+# 属性方法解释
+属性|解释
+--|--
+steps| 这个属性只有 steps[0] 是对外操作开发的，并且是控制函数执行的属性。
+error| 当流程出错时，用户自定义的错误(Error)对象
+msg| 当流程出错时，用户定义的错误信息对象
+errorcb| 当流程出错时，用户定义的错误回调
+invoke| 用于开启队列执行
+setIntervalTime| 传递一个参数用于设置循环等待判断是否执行下一个函数的时间
+
+### 解释 setp[0] 如何控制函数执行
+执行 invoke() 后，执行器会每隔 一段时间(默认为500ms，活着通过 setIntervalTime 设定的时间长度)检查当前 steps[0] 的值：
+```javascript
+          / 小于零 执行出错，停止队列
+setps[0] = | 等于零 执行下一个函数
+          \ 大于零 继续等待
+```
+出错时，执行器会检查是否设置了错误参数，并以恰当的方式进行展现。
+错误参数|展现方式
+--|--
+error| throw error
+msg | msg.show(msg.msg);
+errorcb | errorcb()
+
+### Demo
+```javascript
+var eq = null;
+eq = eventQueue([
+    function () {
+        eq.steps[0] = 1;
+        console.log("第一个函数");
+        eq.steps[0] = 0;
+    },
+    function () {
+        eq.steps[0] = 1;
+        setTimeout(function(){
+            console.log("第二个函数");
+            eq.steps[0] = 0;
+        },1000);
+    },
+    function () {
+        eq.steps[0] = 1;
+        try {
+            throw new Error("错误");
+        } catch (e) {
+            eq.steps[0] = -1;
+            eq.error = new Error("错误");
+            eq.msg = {
+                show : console.log,
+                msg : "发生错误"
+            },
+            eq.errorcb = function() {
+                console.log("错误回调");
+            }
+        }
+    }
+]).invoke();
+```
+
+# javascriptQueue.js
+脚本加载队列，方法本身带两个参数：
+参数|解释
+--|--
+jsList| 脚本列表 （脚本路径数组）
+cb| 回调（加载完全部脚本后回调函数）
+
+就只有一个函数 next ，相当于启动函数。
+
+### Demo
+```javascript
+    var jsList = [
+        'jsFile1.js',
+        'jsFile2.js',
+        'jsFile3.js',
+        'jsFile4.js'
+    ];
+    jsQueue(jsList,function(){
+        console.log("加载完成");
+    });
+```
+

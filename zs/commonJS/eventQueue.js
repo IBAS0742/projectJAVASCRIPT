@@ -60,16 +60,21 @@ var eventQueue = (function (events,tipObj) {
                 if (steps[0] < 0) {
                     //console.log("?");
                     //队列执行遇到错误
-                    if ($this.error) {
-                        throw $this.error;
-                    }
                     if ($this.msg) {
                         $this.msg.show($this.msg.msg);
+                        $this.msg = "";
                     }
                     if ($this.errorcb) {
-                        try {$this.errorcb();}catch (e){};
+                        try {
+                            $this.errorcb();
+                            this.errorcb = null;
+                        }catch (e){};
                     }
                     clearInterval(inter);
+                    if ($this.error) {
+                        var e = $this.error;
+                        throw e;
+                    }
                 } else if (steps[0]) {
                     console.log("加载中");
                 } else {
