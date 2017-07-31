@@ -27,7 +27,7 @@ var options = {
 --|--
 src | 源，可以是 cookie、sessionStorage、localStorage、fn、ajaxFn 或者自定义的源，通过修改 src 属性
 fn | 如果源是 fn 或者 ajaxFn ，表示源的求值函数，fn 要求返回一个 object , ajaxFn 要求格式为 fn(cb) ，cb 为回调函数，cb 会被传入 object 对象。
-tag | 对象索引路径，例如 "location.href"，或 源里面对应的位置，例如 Cookie 对应为 '[cookie键][.索引路径]'
+tag | 对象索引路径，例如 "location.href"，或 源里面对应的位置，例如 Cookie 对应为 '[cookie键][.索引路径]'，当该值定义为'-'时，表示直接使用获取到的对象作为数据
 data | 预留数据，如果该数据存在，则忽略 src 的指向，但依旧使用 tag 作索引
 default | 求值失败后的默认值
 tarAttr | 默认为一个元素对象的 text 或 innerHTML

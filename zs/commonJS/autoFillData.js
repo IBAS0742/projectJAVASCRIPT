@@ -4,7 +4,10 @@
 //该对象用于自动填充字段信息
 //例如问题详情页自动填充问题标题和问题详情等信息
 //需要引入 common.js 使用其中的cookie
-
+/**
+ * 定义的填充函数的参数为(retV,this)
+ * retV 为 返回内容（将作为填充的内容）  this 操作对象（元素）
+ * */
 var autoFillData =  (function () {
     var options = {
         'src' : "data-src",
@@ -36,7 +39,9 @@ var autoFillData =  (function () {
                 function(err) {
                     console.log("error info : " + err);
                 } : 
-                toast.show
+                function (msg) {
+                    toast.show.call(toast,msg);
+                }
             );
     //这里的 CookieManage sessionStorageManage localStorageManage 都已经统一了接口形式
     var src = {
@@ -45,7 +50,9 @@ var autoFillData =  (function () {
         localStorage : localStorageManage || {},
         //fn : function () {}
     };
-    var autoScan = function (cb) {
+    //2017年7月22日14:20:03 添加参数 parName 向下实现兼容
+    //parName : 指定父节点，因为可能会有一个页面内存在多个自动补全而不能公用的情况
+    var autoScan = function (cb,parName) {
         var $this = this;
         this.stack = {
             sync : {
@@ -53,7 +60,13 @@ var autoFillData =  (function () {
             async : {
             }
         };
-        Array.prototype.slice.call($$('[' + options['src'] + ']')).forEach(function (i) {
+        var arr;
+        if (parName) {
+            arr = Array.prototype.slice.call($$(parName).find('[' + options['src'] + ']'));
+        } else {
+            arr = Array.prototype.slice.call($$('[' + options['src'] + ']'));
+        }
+        arr.forEach(function (i) {
             var $$ele = $$(i);
             var $$eleTag = $$ele.attr(options['tag']);
             var $$elePre = $$ele.attr(options['data']);
@@ -126,7 +139,7 @@ var autoFillData =  (function () {
                     ret = fn;
                 }
                 tarEle.forEach(function (i) {
-                    var retV = splitAttrForManage(ret,i.getAttribute(options['tag']));
+                    var retV = splitAttrForManage(ret,i.getAttribute(options['tag'])) + '';
                     retV = retV ? retV : i.getAttribute(options['default']);
                     if (!retV) {
                         var err = i.getAttribute(options['errorMsg']);
@@ -157,7 +170,16 @@ var autoFillData =  (function () {
                 //myApp.showIndicator();
                 fn(function (ret,cb) {
                     tarEle.forEach(function (i) {
-                        var retV = splitAttrForManage(ret,i.getAttribute(options['tag']));
+                        var tar = i.getAttribute(options['tag']),
+                            retV;
+                        if (tar != '-') {
+                            retV = splitAttrForManage(ret,tar);
+                        } else {
+                            retV = ret;
+                        }
+                        if (retV instanceof Object) {} else {
+                            retV += "";
+                        }
                         retV = retV ? retV : i.getAttribute(options['default']);
                         if (!retV) {
                             var err = i.getAttribute(options['errorMsg']);

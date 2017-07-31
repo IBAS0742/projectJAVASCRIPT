@@ -14,7 +14,9 @@ if (!$$) {
 var ts = (
             (splitAttrForManage(window,'toast.show') == window) ?
                 console.log : 
-                toast.show
+                function (msg) {
+                    toast.show.call(toast,msg);
+                }
             );
 
 //邮箱
