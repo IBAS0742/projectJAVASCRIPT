@@ -311,6 +311,7 @@ setTimeout(function(){
 
 # eventQueue.js
 执行函数队列，方法本身带两个参数：
+
 参数|说明
 --|--
 events| 将要运行的函数数组集合
@@ -386,6 +387,7 @@ eq = eventQueue([
 
 # javascriptQueue.js
 脚本加载队列，方法本身带两个参数：
+
 参数|解释
 --|--
 jsList| 脚本列表 （脚本路径数组）
