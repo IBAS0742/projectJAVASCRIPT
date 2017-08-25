@@ -11,6 +11,12 @@ var musicPlay = (function () {
             "粤语","独立","动漫","新世纪",
             "中国摇滚","R&B"],
         musicList = {},
+        //当前播放类型
+        curTag = "动漫",
+        //当前播放的列表的 id
+        curMusicListId = "",
+        //当前播放的是某一个列表的位置索引，即第几首
+        curMusicListIndex = 0,
         //当前播放音乐列表
         curMusicList = {},
         //当前歌词位置
@@ -23,7 +29,17 @@ var musicPlay = (function () {
         curLyricLine = "",
         canPlay = false,
         showLyricEle = null,
-        showMethod;
+        showMethod,
+        playMode = {
+            0 : "单曲循环",
+            1 : "当前列表循环",
+            2 : "当前分类循环",
+            3 : "全体循环",     //以后完善
+            4 : "循环收藏歌曲" //以后完善
+        },
+        curPlayMode = 2,
+        //作为获取歌词的前缀
+        lyricPix;
     //定义一个 audio 元素
     var init = function (tar,showMethod_) {
         init = function () {};
@@ -44,9 +60,23 @@ var musicPlay = (function () {
                 }
             }
         };
+        audio.onended = function () {
+            //下一首
+            playNextSong();
+        };
         showLyricEle = $(tar);
     };
     var refleshLyric = function (ind) {
+        if (curLyric.length == 1) {
+            showLyricEle.html(showMethod("",curLyric[0][1],""));
+            return;
+        }
+        if (ind > 0) {
+            if (ind == curLyric.length - 1) {
+            } else {
+                ind--;
+            }
+        }
         if (ind == curLyricInd) {
             if (!ind) {
                 showLyricEle.html(showMethod("",curLyric[0][1],(ind < curLyric.length) ? curLyric[1][1] : ""));
@@ -66,42 +96,74 @@ var musicPlay = (function () {
     };
     var defaultShowLyric = function (a,b,c) {
         return (
-            '<div style="color: gray;min-height: 1em;font-size: 1em;text-align: center;word-break: break-all">' + a + '</div>' +
-            '<div  style="color: black;min-height: 1em;font-size: 1.4em;text-align: center;word-break: break-all">' + b + '</div>' +
-            '<div  style="color: gray;min-height: 1em;font-size: 1em;text-align: center;word-break: break-all">' + c + '</div>'
+            '<div style="color: #7ac881;min-height: 1em;font-size: 1.4em;text-align: center;word-break: break-all">' + (a || "~~~") + '</div>' +
+            '<div  style="color: #633bf9;min-height: 1em;font-size: 1.8em;text-align: center;word-break: break-all">' + (b || "~~~") + '</div>' +
+            '<div  style="color: #7ac881;min-height: 1em;font-size: 1.4em;text-align: center;word-break: break-all">' + (c || "~~~") + '</div>'
         );
     };
     //获取大分类下的音乐列表
-    var initMusicList = function () {
-        musicTag.forEach(function (i,j) {
-            var ret;$.ajax({
-                url : "http://www.halahala.cn:3080/cor",
-                data : {
-                    url : "https://douban.fm/j/v2/songlist/explore?type=hot&genre=" + j + "&limit=100&sample_cnt=5",
-                    type : "豆瓣测试",
-                    ret : "false"
-                },
-                success : function(m) {
-                    try {
-                        var js = JSON.parse(m.text);
-                        musicList[i] = {
-                            info : js,
-                            list : {}
-                        };
-                    } catch(e) {
-                        console.warn("发生错误 tag = " + i);
-                    }
+    /**
+     * tag 分类名称
+     * ind 分类的索引
+     * */
+    var initMusicListTag = function (tag,ind,cb) {
+        if (tag in musicList) {
+            return cb(musicList[tag]);
+        }
+        ind = ind + "";
+        if (!ind) {
+            for (var i = 0;i < musicTag.length;i++) {
+                if (musicTag[i] == tag) {
+                    ind = i + "";
+                    break;
                 }
-            });
-        })
+            }
+        }
+        if (!ind) {
+            return cb({});
+        }
+        var ret;$.ajax({
+            url : "http://www.halahala.cn:3080/cor",
+            data : {
+                url : "https://douban.fm/j/v2/songlist/explore?type=hot&genre=" + ind + "&limit=100&sample_cnt=5",
+                type : "豆瓣获取分类歌曲列表集合",
+                ret : "false"
+            },
+            success : function(m) {
+                try {
+                    var js = JSON.parse(m.text);
+                    var ids = [],
+                        titles = [];
+                    js.forEach(function (k) {
+                        ids.push(k.id);
+                        titles.push(k.title);
+                    });
+                    musicList[tag] = {
+                        info : js,
+                        list : {},
+                        listId : ids,
+                        titles : titles
+                    };
+                    return cb(musicList[tag]);
+                } catch(e) {
+                    console.warn("发生错误 tag = " + tag);
+                    return cb({});
+                }
+            }
+        });
     };
     //获取小分类下的音乐列表
     var getMusic = function (tag,id,cb) {
+        if (tag in musicList) {
+            if (id in musicList[tag].list) {
+                cb(tag,id,0);
+            }
+        }
         $.ajax({
             url : "http://www.halahala.cn:3080/cor",
             data : {
                 url : "https://douban.fm/j/v2/songlist/" + id + "/?kbps=128",
-                type : "豆瓣测试",
+                type : "豆瓣获取某一分类的某一个列表内容",
                 ret : "false"
             },
             success : function(m) {
@@ -119,9 +181,9 @@ var musicPlay = (function () {
             }
         });
     };
-    var getLyric = function (musicObj,musicId) {
+    var getLyric = function (musicObj,musicId_) {
         if (musicObj) {
-            curMusic = musicId;
+            curMusic = musicId_;
             if (musicObj.lyric) {
                 curLyric = musicObj.lyric;
                 curLyricInd = 0;
@@ -131,37 +193,42 @@ var musicPlay = (function () {
                 curLyric = [[0,"正在获取歌词"]];
                 curLyricInd = 0;
                 curLyricLine = "";
-                (function (musicId) {
-                    var ret;$.ajax({
+                (function (musicId_) {
+                    $.ajax({
                         url : "http://www.halahala.cn:3080/cor",
                         data : {
                             url : "https://douban.fm/j/v2/lyric?sid=" + musicObj.sid + "&ssid=" + musicObj.ssid,
-                            type : "豆瓣测试"
+                            type : "豆瓣获取歌词"
                         },
                         success : function(m) {
                             try {
                                 var lyric = JSON.parse(m.text).lyric;
                                 if (lyric == "暂无歌词") {
-                                    musicObj.lyric = [[0,"没有找到歌词"]];
-                                    if (curMusic == musicId) {
+                                    musicObj.lyric = [[1000,"没有找到歌词"]];
+                                    if (curMusic == musicId_) {
                                         curLyric = musicObj.lyric;
                                     }
                                 } else {
                                     musicObj.lyric = parseLyric(lyric);
-                                    if (curMusic == musicId) {
+                                    if (curMusic == musicId_) {
+                                        if (musicObj.lyric.length) {
+                                        } else {
+                                            musicObj.lyric = [[1000,"没有找到歌词"]];
+                                        }
                                         curLyric = musicObj.lyric;
                                     }
                                 }
                             } catch (e) {
-                                console.log("获取歌词失败 musicId = " + musicId);
-                                musicObj.lyric = [[0,"没有找到歌词"]];
-                                if (curMusic == musicId) {
+                                console.log("获取歌词失败 musicId = " + musicId_);
+                                curLyricInd = 0;
+                                musicObj.lyric = [[1000,"没有找到歌词"]];
+                                if (curMusic == musicId_) {
                                     curLyric = musicObj.lyric;
                                 }
                             }
                         }
                     });
-                })(musicId);
+                })(musicId_);
             }
         } else {
             curLyric = [[0,"没有找到歌词"]];
@@ -177,9 +244,12 @@ var musicPlay = (function () {
             //保存最终结果的数组
             result = [];
         //去掉不含时间的行
-        while (!pattern.test(lines[0])) {
+        while (!pattern.test(lines[0]) && lines.length) {
             lines = lines.slice(1);
         };
+        if (!lines.length) {
+            return [];
+        }
         //上面用'\n'生成生成数组时，结果中最后一个为空元素，这里将去掉
         lines[lines.length - 1].length === 0 && lines.pop();
         lines.forEach(function(v /*数组元素值*/ , i /*元素索引*/ , a /*数组本身*/ ) {
@@ -205,47 +275,104 @@ var musicPlay = (function () {
         });
         return result;
     };
-    var play = function (tag,id,ind) {
-        var musicObj = musicList[tag].list[id][ind];
+    var play = function (ind) {
+        curMusicListIndex = ind || curMusicListIndex;
+        var musicObj = curMusicList[ind];
         if (musicObj) {
-            getLyric(musicObj,tag + "_" + id + "_" + ind + "_" + (new Date()).getTime());
+            musicId = musicObj,lyricPix + ind + "_" + (new Date()).getTime();
+            getLyric(musicId);
             audio.src = musicObj.url;
             audio.play();
         }
     };
-    var autoInfo = {
-        tag : "",
-        id : "",
-        ind : ""
-    };
-    var waitId = setInterval(function () {
-        //自动播放音乐
-        for (var i = 0;i < musicTag.length;i++) {
-            if (musicTag[i] in musicList) {
-                //
-                getMusic(musicTag[i],musicList[musicTag[i]].info[0].id,function (tag,id) {
-                    autoInfo = {
-                        tag : tag,
-                        id : id,
-                        ind : 0
-                    };
-                    canPlay = true;
-                });
-                clearInterval(waitId);
-                return;
+    var playNextSong = function () {
+        //默认为单曲循环
+        curPlayMode = curPlayMode || 0;
+        if (curTag && curMusicListId && curMusicListIndex.toString()) {
+            //判断列表是否有下一首
+            switch (curPlayMode) {
+                case 0 :    //单曲
+                    play(curMusicListIndex);
+                    break;
+                case 1 :    //列表
+                    curMusicListIndex = (curMusicListIndex + 1) % curMusicList.length;
+                    play(curMusicListIndex);
+                    break;
+                case 2 :    //分类
+                    curMusicListIndex++;
+                    if (curMusicList.length > curMusicListIndex) {
+                        play(curMusicListIndex);
+                    } else {
+                        //加载新列表
+                        showLyricEle.html(showMethod("","正在获取新列表",""));
+                        var list = musicList[curTag].listId,
+                            i = 0;
+                        for (i = 0;i < list.length;i++) {
+                            if (list[i] == curMusicListId) {
+                                break;
+                            }
+                        }
+                        i = (i + 1) % list.length;
+                        changeMusicListId(list[i]);
+                    }
+                    break;
+                case 3 :    //全体
+                    break;
+                case 4 :    //收藏内容
+                    break;
             }
+        } else {
+            //没有足够信息让我知道下一首是什么
+            console.warn("没有足够信息让我知道下一首是什么");
         }
-    },1000);
-    var waitPlayId = setInterval(function () {
-        if (canPlay) {
-            clearInterval(waitPlayId);
-            play(autoInfo.tag,autoInfo.id,autoInfo.ind);
-            return;
+    };
+
+    /**
+     * 在当前分类下修改音乐列表
+     * */
+    var changeMusicListId = function (id) {
+        getMusic(curTag,id,function (tag,id) {
+            curMusicListIndex = 0;
+            playList(tag,id);
+        });
+    };
+
+    /**
+     * 初始化某一个歌单
+     * */
+    var showOneTag = function (tag,cb) {
+        initMusicListTag(tag,"",cb);
+    };
+
+    /**
+     * 修改播放的歌曲
+     * tag 播放的类型
+     * id 播放的列表
+     * index 播放的歌词索引
+     * */
+    var playList = function (tag,id,index) {
+        lyricPix = tag + "_" + id + "_";
+        curMusicList = musicList[tag].list[id];
+        curMusicListIndex = index || 0;
+        play(curMusicListIndex);
+    };
+
+    var autoInit = function (tag) {
+        if (tag) {
+            curTag = tag;
         }
-    },1000);
-    initMusicList();
+        initMusicListTag(curTag,"",function (obj) {
+            curMusicListId = obj.info[0].id;
+            getMusic(curTag,curMusicListId ,function (tag,id) {
+                curMusicListIndex = 0;
+                playList(tag,id);
+            });
+        });
+    };
+    //initMusicList();
     return {
         init : init,
+        autoPlay : autoInit,
         control : {
             play : function () {
                 audio.play();
@@ -256,22 +383,37 @@ var musicPlay = (function () {
             },
             next : function () {
                 //下一首
+                playNextSong();
             },
+            //单曲循环
             single : function () {
-                //单曲
+                curPlayMode = 0;
             },
+            //当前列表循环
             loop : function () {
-                //当前小类循环
+                curPlayMode = 1;
             },
-            changeList : function () {
+            //当前分类循环
+            allLoop : function () {
+                curPlayMode = 2;
+            },
+            //播放另一个列表歌曲
+            changeList : function (id) {
                 //修改风格，小类
+                changeMusicListId(id);
             },
-            changeStyle : function () {
-                //修改风格，大类
-            }
-        }
-        //initMusicList : initMusicList,
-        //getMusic : getMusic,
+            //获取分类内容
+            showTag : function (tag,cb) {
+                /**
+                 * obj 为当前分类的 完整对象
+                 * */
+                showOneTag(tag,function (obj) {
+                    cb(obj);
+                });
+            },
+            showOneTag : showOneTag
+        },
+        // getMusic : getMusic,
         // audio : function () {
         //     return audio;
         // },
